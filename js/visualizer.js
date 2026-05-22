@@ -222,7 +222,7 @@ export default class Visualizer {
 
         // Hide label when the falling note reaches the bottom of the piano roll / virtual keyboard area
         if (w > 24 && h > 20 && noteBottom < this.height - 6) {
-            ctx.font = '14px sans-serif';
+            ctx.font = '16px sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'bottom';
             ctx.lineWidth = 1.5;
