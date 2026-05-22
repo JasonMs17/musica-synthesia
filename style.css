@@ -10,7 +10,7 @@
     --accent-color: #00d4ff;
 
     --toolbar-height: 60px;
-    --keyboard-height: 120px;
+    --keyboard-height: 160px;
 }
 
 body.theme-light {
@@ -154,7 +154,7 @@ input[type="range"] {
 
 /* Visualizer Area */
 #visualizer-container {
-    flex: 1;
+    height: calc(100vh - var(--toolbar-height) - var(--keyboard-height));
     position: relative;
     background-color: #000;
     overflow: hidden;
