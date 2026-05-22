@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SYNTHESIA NEXT</title>
+    <title>MUSIC KEYS</title>
     <link rel="stylesheet" href="style.css">
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,24 +21,24 @@
         <!-- Top Toolbar -->
         <header id="toolbar" class="toolbar-hidden">
             <div class="toolbar-left">
-                <div class="logo">SYNTHESIA NEXT</div>
+                <div class="logo">MUSIC KEYS</div>
                 <button id="btn-load-midi" class="btn-icon" title="Load MIDI">📂</button>
                 <input type="file" id="file-input" accept=".mid,.midi" style="display: none;">
             </div>
 
             <div class="toolbar-center">
-                <button id="btn-stop" class="btn-control">⏹</button>
-                <button id="btn-play-pause" class="btn-control">▶</button>
+                <button id="btn-stop" class="btn-control" disabled>⏹</button>
+                <button id="btn-play-pause" class="btn-control" disabled>▶</button>
                 <div class="time-display">
                     <span id="current-time">00:00</span> / <span id="total-time">00:00</span>
                 </div>
-                <input type="range" id="seek-slider" min="0" max="100" value="0">
+                <input type="range" id="seek-slider" min="0" max="100" value="0" disabled>
             </div>
 
             <div class="toolbar-right">
                 <div class="control-group">
                     <label>Speed</label>
-                    <input type="range" id="speed-slider" min="0.25" max="2.0" step="0.05" value="1.0">
+                    <input type="range" id="speed-slider" min="0.25" max="2.0" step="0.05" value="1.0" disabled>
                     <span id="speed-value">1.0x</span>
                 </div>
                 <button id="btn-interactive-mode" class="btn-icon btn-premium" title="Interactive Mode (Premium Only)"

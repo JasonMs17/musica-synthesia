@@ -133,10 +133,12 @@ class SynthesiaNext {
             this.openMIDISettingsModal();
         });
 
-        // Keyboard Shortcut: 'K' to toggle toolbar visibility
+        // Keyboard Shortcut: 'K' to toggle toolbar visibility, 'H' to toggle recording
         document.addEventListener('keydown', (e) => {
             if (e.key.toLowerCase() === 'k') {
                 this.toggleToolbar();
+            } else if (e.key.toLowerCase() === 'h') {
+                this.toggleRecording();
             }
         });
     }
@@ -319,6 +321,10 @@ class SynthesiaNext {
         // Reset interactive mode state
         this.interactiveModeManager.reset();
         this.isWaitingForInput = false;
+
+        if (this.isRecording) {
+            this.stopRecording();
+        }
     }
 
     handleFileSelect(event) {
@@ -335,6 +341,13 @@ class SynthesiaNext {
             await this.audioEngine.loadMidi(arrayBuffer);
             this.visualizer.reset();
             this.interactiveModeManager.reset();
+            
+            // Enable controllers
+            document.getElementById('btn-play-pause').disabled = false;
+            document.getElementById('btn-stop').disabled = false;
+            document.getElementById('seek-slider').disabled = false;
+            document.getElementById('speed-slider').disabled = false;
+
             console.log("MIDI loaded successfully");
         } catch (error) {
             console.error("Error loading MIDI:", error);
@@ -350,11 +363,117 @@ class SynthesiaNext {
 
     toggleToolbar() {
         const toolbar = document.getElementById('toolbar');
-        const visualizerContainer = document.getElementById('visualizer-container');
         const keyboardContainer = document.getElementById('keyboard-container');
         toolbar.classList.toggle('toolbar-hidden');
-        visualizerContainer.classList.toggle('expanded');
         keyboardContainer.classList.toggle('keyboard-minimal');
+
+        if (this.visualizer && typeof this.visualizer.resize === 'function') {
+            this.visualizer.resize();
+        }
+    }
+
+    async toggleRecording() {
+        if (this.isRecording) {
+            this.stopRecording();
+            return;
+        }
+
+        if (!this.audioEngine.midiData) {
+            alert("Harap load file MIDI/XML terlebih dahulu sebelum merekam.");
+            return;
+        }
+
+        try {
+            // Inform user what to choose in the screen sharing prompt.
+            alert("Pilih layar atau jendela yang menampilkan aplikasi ini. Jika tab browser tidak muncul, pilih seluruh layar atau jendela browser.");
+
+            const displayStream = await navigator.mediaDevices.getDisplayMedia({
+                video: {
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+                    frameRate: { ideal: 60 },
+                    cursor: "never"
+                },
+                audio: false
+            });
+
+            // Capture high quality audio directly from Tone.js Context without relying on mic/system audio
+            const audioDest = Tone.context.createMediaStreamDestination();
+            Tone.getDestination().connect(audioDest);
+
+            // Combine video and audio
+            const tracks = [
+                ...displayStream.getVideoTracks(),
+                ...audioDest.stream.getAudioTracks()
+            ];
+            
+            this.recordingStream = new MediaStream(tracks);
+
+            // Check supported types for high quality webm
+            let options = { mimeType: 'video/webm; codecs=vp9' };
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                options = { mimeType: 'video/webm; codecs=vp8' };
+            }
+            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                options = { mimeType: 'video/webm' };
+            }
+            
+            this.mediaRecorder = new MediaRecorder(this.recordingStream, options);
+            this.recordedChunks = [];
+
+            this.mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    this.recordedChunks.push(event.data);
+                }
+            };
+
+            this.mediaRecorder.onstop = () => {
+                const blob = new Blob(this.recordedChunks, { type: options.mimeType });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `synthesia-recording-${Date.now()}.webm`;
+                document.body.appendChild(a);
+                a.click();
+                
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+
+                // Disconnect to clean up
+                Tone.getDestination().disconnect(audioDest);
+                this.recordingStream.getTracks().forEach(track => track.stop());
+                
+                this.isRecording = false;
+                console.log("Recording stopped and saved.");
+            };
+
+            displayStream.getVideoTracks()[0].onended = () => {
+                if (this.isRecording) {
+                    this.stopRecording();
+                }
+            };
+
+            // Reset time and play to start recording
+            this.audioEngine.setTime(0);
+            this.mediaRecorder.start();
+            this.isRecording = true;
+            this.audioEngine.play();
+            document.getElementById('btn-play-pause').textContent = "⏸";
+            console.log("Recording started...");
+
+        } catch (error) {
+            console.error("Error starting screen recording:", error);
+            alert("Gagal memulai recording. Pastikan memberikan izin share screen.");
+        }
+    }
+
+    stopRecording() {
+        if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+            this.mediaRecorder.stop();
+        }
     }
 
     gameLoop(timestamp) {

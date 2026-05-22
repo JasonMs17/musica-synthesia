@@ -19,6 +19,11 @@ export default class Visualizer {
         // Zoom view range to octaves 2..5
         this.viewMinMidi = 36; // C2
         this.viewMaxMidi = 83; // B5
+
+        // Constant visual fall speed in pixels per second.
+        // timeWindow is computed dynamically from height so notes always
+        // travel the full canvas height at this speed, regardless of screen size.
+        this.PIXELS_PER_SECOND = 200;
     }
 
     init(audioEngine) {
@@ -33,6 +38,9 @@ export default class Visualizer {
 
         this.resize();
         window.addEventListener('resize', () => this.resize());
+        document.addEventListener('fullscreenchange', () => this.resize());
+        document.addEventListener('webkitfullscreenchange', () => this.resize());
+        document.addEventListener('mozfullscreenchange', () => this.resize());
 
         // Setup mouse/touch events for keyboard interaction
         this.setupKeyboardInput();
@@ -93,8 +101,10 @@ export default class Visualizer {
         const activeNotes = new Map();
 
         if (midiData) {
-            const timeWindow = 4; // Seconds of music visible on screen
-            const pixelsPerSecond = this.height / timeWindow;
+            // Dynamic timeWindow: always derived from canvas height so that
+            // the visual fall speed (px/s) stays constant across all screen sizes.
+            const pixelsPerSecond = this.PIXELS_PER_SECOND;
+            const timeWindow = this.height / pixelsPerSecond; // seconds visible on screen
 
             midiData.tracks.forEach(track => {
                 track.notes.forEach(note => {
@@ -160,7 +170,7 @@ export default class Visualizer {
         const y = (this.height - h) / 2 -120;
 
         this.ctx.save();
-        this.ctx.globalAlpha = 0.1;
+        this.ctx.globalAlpha = 0.15;
         this.ctx.drawImage(this.watermark, x, y, w, h);
         this.ctx.restore();
     }
