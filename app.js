@@ -132,6 +132,13 @@ class SynthesiaNext {
         document.getElementById('btn-interactive-mode').addEventListener('click', () => {
             this.openMIDISettingsModal();
         });
+
+        // Keyboard Shortcut: 'K' to toggle toolbar visibility
+        document.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'k') {
+                this.toggleToolbar();
+            }
+        });
     }
 
     setupMIDIEventListeners() {
@@ -339,6 +346,15 @@ class SynthesiaNext {
         const m = Math.floor(seconds / 60);
         const s = Math.floor(seconds % 60);
         return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+
+    toggleToolbar() {
+        const toolbar = document.getElementById('toolbar');
+        const visualizerContainer = document.getElementById('visualizer-container');
+        const keyboardContainer = document.getElementById('keyboard-container');
+        toolbar.classList.toggle('toolbar-hidden');
+        visualizerContainer.classList.toggle('expanded');
+        keyboardContainer.classList.toggle('keyboard-minimal');
     }
 
     gameLoop(timestamp) {

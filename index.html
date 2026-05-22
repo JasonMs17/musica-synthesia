@@ -19,7 +19,7 @@
 <body class="theme-light">
     <div id="app-container">
         <!-- Top Toolbar -->
-        <header id="toolbar">
+        <header id="toolbar" class="toolbar-hidden">
             <div class="toolbar-left">
                 <div class="logo">SYNTHESIA NEXT</div>
                 <button id="btn-load-midi" class="btn-icon" title="Load MIDI">📂</button>
@@ -49,7 +49,7 @@
         </header>
 
         <!-- Main Visualization Area -->
-        <main id="visualizer-container">
+        <main id="visualizer-container" class="expanded">
             <canvas id="piano-roll-canvas"></canvas>
             <div id="drag-overlay" class="hidden">
                 <div class="drag-message">Drop MIDI file here</div>
@@ -57,7 +57,7 @@
         </main>
 
         <!-- Keyboard Area -->
-        <div id="keyboard-container">
+        <div id="keyboard-container" class="keyboard-minimal">
             <canvas id="keyboard-canvas"></canvas>
         </div>
     </div>

@@ -70,6 +70,16 @@ body {
     justify-content: space-between;
     padding: 0 20px;
     z-index: 10;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+#toolbar.toolbar-hidden {
+    height: 0;
+    padding: 0 20px;
+    border-bottom: none;
+    opacity: 0;
+    pointer-events: none;
 }
 
 .toolbar-left,
@@ -159,6 +169,11 @@ input[type="range"] {
     background-color: #000;
     overflow: hidden;
     min-height: 0;
+    transition: height 0.3s ease;
+}
+
+#visualizer-container.expanded {
+    height: calc(100vh - var(--keyboard-height));
 }
 
 #piano-roll-canvas {
@@ -182,6 +197,8 @@ input[type="range"] {
     z-index: 20;
 }
 
+
+
 #drag-overlay.hidden {
     display: none;
 }
@@ -200,6 +217,12 @@ input[type="range"] {
     background-color: var(--surface-color);
     border-top: 1px solid var(--border-color);
     position: relative;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+#keyboard-container.keyboard-minimal {
+    background-color: transparent;
+    border-top-color: transparent;
 }
 
 #keyboard-canvas {

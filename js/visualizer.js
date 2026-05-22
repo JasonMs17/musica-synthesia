@@ -11,6 +11,11 @@ export default class Visualizer {
         this.offNoteCallback = null; // Callback for note-off events
         this.audioEngine = null; // Reference to audio engine for sound playback
 
+        this.watermark = new Image();
+        this.watermarkLoaded = false;
+        this.watermark.onload = () => { this.watermarkLoaded = true; };
+        this.watermark.src = 'assets/images/watermark.png';
+
         // Zoom view range to octaves 2..5
         this.viewMinMidi = 36; // C2
         this.viewMaxMidi = 83; // B5
@@ -77,6 +82,11 @@ export default class Visualizer {
         this.ctx.fillStyle = '#000000';
         this.ctx.fillRect(0, 0, this.width, this.height);
 
+        // Draw watermark on piano roll background so notes can pass over it
+        if (this.watermarkLoaded) {
+            this.drawWatermark();
+        }
+
         // Draw octave grid lines
         this.drawOctaveGrid();
 
@@ -139,6 +149,20 @@ export default class Visualizer {
         // }
 
         this.renderKeyboard(activeNotes, activeUserNotes, expectedNotes, interactiveMode);
+    }
+
+    drawWatermark() {
+        const maxWidth = Math.min(this.width * 0.6, 280);
+        const aspectRatio = this.watermark.width / this.watermark.height;
+        const w = maxWidth;
+        const h = maxWidth / aspectRatio;
+        const x = (this.width - w) / 2;
+        const y = (this.height - h) / 2 -120;
+
+        this.ctx.save();
+        this.ctx.globalAlpha = 0.1;
+        this.ctx.drawImage(this.watermark, x, y, w, h);
+        this.ctx.restore();
     }
 
     drawOctaveGrid() {
