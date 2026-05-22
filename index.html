@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SYNTHESIA NEXT</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Tone.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- MidiParser -->
+    <script src="https://unpkg.com/@tonejs/midi"></script>
+</head>
+
+<body class="theme-light">
+    <div id="app-container">
+        <!-- Top Toolbar -->
+        <header id="toolbar">
+            <div class="toolbar-left">
+                <div class="logo">SYNTHESIA NEXT</div>
+                <button id="btn-load-midi" class="btn-icon" title="Load MIDI">📂</button>
+                <input type="file" id="file-input" accept=".mid,.midi" style="display: none;">
+            </div>
+
+            <div class="toolbar-center">
+                <button id="btn-stop" class="btn-control">⏹</button>
+                <button id="btn-play-pause" class="btn-control">▶</button>
+                <div class="time-display">
+                    <span id="current-time">00:00</span> / <span id="total-time">00:00</span>
+                </div>
+                <input type="range" id="seek-slider" min="0" max="100" value="0">
+            </div>
+
+            <div class="toolbar-right">
+                <div class="control-group">
+                    <label>Speed</label>
+                    <input type="range" id="speed-slider" min="0.25" max="2.0" step="0.05" value="1.0">
+                    <span id="speed-value">1.0x</span>
+                </div>
+                <button id="btn-interactive-mode" class="btn-icon btn-premium" title="Interactive Mode (Premium Only)"
+                    data-premium="true">🎹</button>
+                <button id="btn-fullscreen" class="btn-icon" title="Fullscreen">⛶</button>
+                <button id="btn-license" class="btn-primary">License</button>
+            </div>
+        </header>
+
+        <!-- Main Visualization Area -->
+        <main id="visualizer-container">
+            <canvas id="piano-roll-canvas"></canvas>
+            <div id="drag-overlay" class="hidden">
+                <div class="drag-message">Drop MIDI file here</div>
+            </div>
+        </main>
+
+        <!-- Keyboard Area -->
+        <div id="keyboard-container">
+            <canvas id="keyboard-canvas"></canvas>
+        </div>
+    </div>
+
+    <!-- License Modal -->
+    <div id="license-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+
+            <!-- Activation Form (shown when license is NOT active) -->
+            <div id="license-activation-form">
+                <h2>Activate Premium</h2>
+                <p>Enter your license key to unlock unlimited playback and premium features.</p>
+                <p class="purchase-link">Purchase license key here: <a href="https://payhip.com/b/DvoWZ" target="_blank"
+                        rel="noopener noreferrer">https://payhip.com/b/DvoWZ</a></p>
+                <input type="text" id="license-input" placeholder="SNX-PREM-XXXX-XXXX">
+                <button id="btn-activate" class="btn-primary full-width">Activate</button>
+                <p id="license-status" class="status-message"></p>
+            </div>
+
+            <!-- License Active Message (shown when license IS active) -->
+            <div id="license-active-message" class="hidden">
+                <h2>✓ Full Version Active</h2>
+                <p class="status-message status-success">Your premium license is already active. Enjoy unlimited
+                    playback and all premium features!</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MIDI Interactive Mode Modal -->
+    <div id="midi-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close-modal" id="close-midi-modal">&times;</span>
+            <h2>🎹 Interactive Mode Settings</h2>
+
+            <!-- Premium Warning (shown to non-premium users) -->
+            <div id="midi-premium-warning" class="premium-warning hidden">
+                <p><strong>⭐ Premium Feature</strong></p>
+                <p>Interactive Mode requires an active Premium license.</p>
+                <p class="purchase-link">
+                    <a href="https://payhip.com/b/DvoWZ" target="_blank" rel="noopener noreferrer">
+                        Get Premium License →
+                    </a>
+                </p>
+            </div>
+
+            <!-- MIDI Settings Content (shown only with license) -->
+            <div id="midi-settings-content">
+                <div class="mode-selector">
+                    <h3>Mode</h3>
+                    <div class="mode-buttons">
+                        <button id="mode-off" class="mode-btn active" data-mode="off">
+                            Standard Playback
+                        </button>
+                        <button id="mode-realtime" class="mode-btn" data-mode="realtime">
+                            Real-Time Input
+                        </button>
+                        <button id="mode-learn" class="mode-btn" data-mode="learn">
+                            Learn to Play
+                        </button>
+                    </div>
+                </div>
+
+                <div class="midi-device-selector">
+                    <h3>MIDI Device</h3>
+                    <div id="midi-device-status" class="status-message">
+                        Checking for MIDI devices...
+                    </div>
+                    <select id="midi-device-select" class="hidden">
+                        <option value="">Select a device</option>
+                    </select>
+                    <div id="midi-not-supported" class="status-message status-error hidden">
+                        Web MIDI not supported in this browser. Please use Chrome or Edge.
+                    </div>
+                </div>
+
+                <div class="midi-monitor">
+                    <h3>Input Monitor</h3>
+                    <div id="midi-input-display" class="input-display">
+                        Play a note on your MIDI device...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="app.js"></script>
+</body>
+
+</html>

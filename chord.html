@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chord Inserter - MusicXML</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 24px;
+      background: #f2f6fb;
+      color: #222;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 26px;
+    }
+
+    header a {
+      color: #0068d4;
+      text-decoration: none;
+      font-size: 14px;
+      border: 1px solid #0068d4;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: #ffffff;
+    }
+
+    .panel {
+      background: #ffffff;
+      border-radius: 14px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.06);
+      padding: 20px;
+      margin-bottom: 18px;
+    }
+
+    .panel h2 {
+      margin-top: 0;
+      font-size: 20px;
+      margin-bottom: 14px;
+    }
+
+    label {
+      font-weight: 600;
+      display: block;
+      margin-bottom: 8px;
+      color: #2b3a50;
+    }
+
+    input[type="file"], input[type="text"], select, textarea {
+      width: 100%;
+      max-width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid #d7dbe4;
+      font-size: 15px;
+      box-sizing: border-box;
+    }
+
+    textarea {
+      min-height: 180px;
+      resize: vertical;
+      font-family: monospace;
+    }
+
+    .hint {
+      color: #556575;
+      margin-top: 8px;
+      font-size: 14px;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 12px 18px;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 600;
+      color: #fff;
+      background: #1665d8;
+      transition: transform 0.15s ease, background 0.15s ease;
+    }
+
+    button:hover {
+      background: #124cb1;
+      transform: translateY(-1px);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+      background: #7a8aa7;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+      margin-top: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 720px;
+    }
+
+    th, td {
+      padding: 12px 10px;
+      border-bottom: 1px solid #e7ecf2;
+      text-align: left;
+      vertical-align: middle;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f6f9ff;
+      font-weight: 700;
+      color: #2f4b72;
+    }
+
+    tr:hover {
+      background: #f8fbff;
+    }
+
+    .note-label {
+      font-family: monospace;
+      color: #1a2d4c;
+    }
+
+    .status {
+      margin-top: 12px;
+      padding: 14px;
+      border-radius: 12px;
+      background: #eaf4ff;
+      color: #1c3b6a;
+      border: 1px solid #cadaf0;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Chord Inserter</h1>
+      <p style="margin: 4px 0 0; color: #5b6f8c;">Upload file MusicXML, lalu tambahkan chord per note dan export XML baru.</p>
+    </div>
+    <a href="index.html">← Kembali ke Music Viewer</a>
+  </header>
+
+  <section class="panel">
+    <h2>1. Upload MusicXML</h2>
+    <label for="xmlFile">Pilih file XML / MusicXML</label>
+    <input type="file" id="xmlFile" accept=".xml,.musicxml" />
+    <div id="fileInfo" class="hint">Belum ada file yang dipilih.</div>
+  </section>
+
+  <section id="notePanel" class="panel hidden">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap: 12px; flex-wrap: wrap;">
+      <div>
+        <h2>2. Insert Chord per Note</h2>
+        <p class="hint">Isi kolom chord untuk setiap note. Contoh: <strong>C</strong>, <strong>Am</strong>, <strong>G7</strong>, <strong>F#</strong>.</p>
+      </div>
+      <div style="display:flex; gap: 10px; flex-wrap: wrap; align-items:center;">
+        <button id="clearAllBtn" type="button">Kosongkan semua chord</button>
+        <button id="exportBtn" type="button" disabled>Export XML</button>
+      </div>
+    </div>
+    <div id="noteSummary" class="hint"></div>
+    <div class="table-wrapper">
+      <table id="noteTable">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Measure</th>
+            <th>Note</th>
+            <th>Chord</th>
+            <th>Quality</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel hidden" id="outputPanel">
+    <h2>3. Export XML dengan Chord</h2>
+    <div class="button-row">
+      <button id="downloadBtn" type="button" disabled>Download XML</button>
+    </div>
+    <label for="xmlOutput">Hasil XML</label>
+    <textarea id="xmlOutput" readonly></textarea>
+  </section>
+
+  <div id="status" class="status">Siap.</div>
+
+  <script>
+    const fileInput = document.getElementById('xmlFile');
+    const fileInfo = document.getElementById('fileInfo');
+    const notePanel = document.getElementById('notePanel');
+    const outputPanel = document.getElementById('outputPanel');
+    const noteTableBody = document.querySelector('#noteTable tbody');
+    const noteSummary = document.getElementById('noteSummary');
+    const exportBtn = document.getElementById('exportBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const xmlOutput = document.getElementById('xmlOutput');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    const status = document.getElementById('status');
+
+    let xmlDoc = null;
+    let notes = [];
+    let currentFilename = 'musicxml-chords.xml';
+
+    function setStatus(text) {
+      status.textContent = text;
+    }
+
+    function resetPage() {
+      noteTableBody.innerHTML = '';
+      noteSummary.textContent = '';
+      xmlOutput.value = '';
+      notePanel.classList.add('hidden');
+      outputPanel.classList.add('hidden');
+      exportBtn.disabled = true;
+      downloadBtn.disabled = true;
+    }
+
+    function normalizeChord(chordText) {
+      return chordText.trim().replace(/\s+/g, '').toUpperCase();
+    }
+
+    function parseChordText(text) {
+      const chord = normalizeChord(text);
+      if (!chord) return null;
+
+      const rootMatch = chord.match(/^[A-G](?:B|#)?/);
+      if (!rootMatch) return null;
+      const root = rootMatch[0];
+      const suffix = chord.slice(root.length);
+
+      let kind = 'major';
+      if (/^M(?!$)|^MAJ/.test(suffix) || suffix === '' ) kind = 'major';
+      else if (/^(MIN|M(?!$))/.test(suffix) || suffix === 'M') kind = 'minor';
+      else if (/^7/.test(suffix)) kind = '7';
+      else if (/^M7|^MAJ7/.test(suffix)) kind = 'maj7';
+      else if (/^MIN7|^M7/.test(suffix)) kind = 'min7';
+      else if (/^DIM/.test(suffix)) kind = 'diminished';
+      else if (/^AUG/.test(suffix)) kind = 'augmented';
+      else if (suffix === 'MINOR' || suffix === 'MIN') kind = 'minor';
+      else if (suffix === 'MAJOR') kind = 'major';
+      else if (suffix === 'M6') kind = 'major';
+      else if (suffix === 'MIN6') kind = 'minor';
+      else if (suffix.length === 0) kind = 'major';
+      else kind = suffix;
+
+      const accidental = root.includes('#') ? 1 : root.includes('B') ? -1 : 0;
+      const rootStep = root[0];
+      return { rootStep, accidental, kind };
+    }
+
+    function createHarmonyElement(doc, chord) {
+      const harmony = doc.createElement('harmony');
+      const root = doc.createElement('root');
+      const rootStep = doc.createElement('root-step');
+      rootStep.textContent = chord.rootStep;
+      root.appendChild(rootStep);
+      if (chord.accidental !== 0) {
+        const rootAlter = doc.createElement('root-alter');
+        rootAlter.textContent = String(chord.accidental);
+        root.appendChild(rootAlter);
+      }
+      harmony.appendChild(root);
+
+      const kind = doc.createElement('kind');
+      const canonicalRoot = chord.rootStep + (chord.accidental === 1 ? '#' : chord.accidental === -1 ? 'b' : '');
+      let defaultText = canonicalRoot;
+      switch (chord.kind) {
+        case 'minor': defaultText += 'm'; break;
+        case '7': defaultText += '7'; break;
+        case 'maj7': defaultText += 'maj7'; break;
+        case 'min7': defaultText += 'm7'; break;
+        case 'diminished': defaultText += 'dim'; break;
+        case 'augmented': defaultText += 'aug'; break;
+        default: break;
+      }
+
+      if (chord.chordText) {
+        const rawText = chord.chordText.trim().toUpperCase();
+        if (rawText !== defaultText.toUpperCase()) {
+          kind.setAttribute('text', chord.chordText);
+        }
+      }
+
+      kind.textContent = chord.kind;
+      harmony.appendChild(kind);
+      return harmony;
+    }
+
+    function findMeasureHarmony(noteEl) {
+      let prev = noteEl.previousElementSibling;
+      while (prev) {
+        if (prev.tagName === 'HARMONY') return prev;
+        if (prev.tagName === 'NOTE') return null;
+        prev = prev.previousElementSibling;
+      }
+      return null;
+    }
+
+    function parseHarmonyElement(harmonyEl) {
+      if (!harmonyEl) return null;
+      const rootStep = harmonyEl.querySelector('root-step')?.textContent || null;
+      const rootAlterText = harmonyEl.querySelector('root-alter')?.textContent || '0';
+      const rootAlter = Number(rootAlterText) || 0;
+      const kindText = harmonyEl.querySelector('kind')?.textContent || 'major';
+      if (!rootStep) return null;
+
+      let chordText = rootStep;
+      if (rootAlter === 1) chordText += '#';
+      else if (rootAlter === -1) chordText += 'b';
+
+      switch (kindText.toLowerCase()) {
+        case 'minor': chordText += 'm'; break;
+        case '7': chordText += '7'; break;
+        case 'maj7': chordText += 'maj7'; break;
+        case 'min7': chordText += 'm7'; break;
+        case 'diminished': chordText += 'dim'; break;
+        case 'augmented': chordText += 'aug'; break;
+        case 'major': break;
+        default: chordText += kindText; break;
+      }
+
+      return { rootStep, accidental: rootAlter, kind: kindText.toLowerCase(), chordText };
+    }
+
+    function syncQualityFromChordInput(input, kindSelect) {
+      const chordInfo = parseChordText(input.value);
+      if (chordInfo) {
+        kindSelect.value = chordInfo.kind || 'major';
+      } else if (input.value.trim().length === 0) {
+        kindSelect.value = 'major';
+      }
+    }
+
+    function renderNotes(noteElements) {
+      noteTableBody.innerHTML = '';
+      notes = noteElements.map((noteEl, index) => {
+        const pitch = noteEl.querySelector('pitch');
+        let label = 'REST';
+        if (pitch) {
+          const step = pitch.querySelector('step')?.textContent || '?';
+          const octave = pitch.querySelector('octave')?.textContent || '?';
+          const alter = pitch.querySelector('alter')?.textContent;
+          label = step + (alter ? (alter === '1' ? '#' : alter === '-1' ? 'b' : '') : '') + octave;
+        }
+        const measure = noteEl.closest('measure')?.getAttribute('number') || '-';
+        const harmonyEl = noteEl.querySelector('harmony') || findMeasureHarmony(noteEl);
+        const originalChord = parseHarmonyElement(harmonyEl);
+        const row = document.createElement('tr');
+
+        row.innerHTML = `
+          <td> ${index + 1} </td>
+          <td> ${measure} </td>
+          <td class="note-label"> ${label} </td>
+          <td><input type="text" class="chord-input" placeholder="C, Am, G7" data-note-index="${index}" value="${originalChord?.chordText || ''}" /></td>
+          <td>
+            <select class="kind-select" data-note-index="${index}">
+              <option value="major">major</option>
+              <option value="minor">minor</option>
+              <option value="7">7</option>
+              <option value="maj7">maj7</option>
+              <option value="min7">min7</option>
+              <option value="diminished">diminished</option>
+              <option value="augmented">augmented</option>
+            </select>
+          </td>
+        `;
+
+        noteTableBody.appendChild(row);
+
+        const chordInput = row.querySelector('.chord-input');
+        const kindSelect = row.querySelector('.kind-select');
+        chordInput.addEventListener('input', () => {
+          syncQualityFromChordInput(chordInput, kindSelect);
+        });
+        if (originalChord) {
+          kindSelect.value = originalChord.kind || 'major';
+        }
+
+        return { noteEl, label, measure, originalChord };
+      });
+
+      noteSummary.textContent = `${notes.length} note ditemukan.`;
+      notePanel.classList.remove('hidden');
+      outputPanel.classList.add('hidden');
+      exportBtn.disabled = false;
+      downloadBtn.disabled = true;
+      xmlOutput.value = '';
+      setStatus('File berhasil dimuat. Silakan isi chord per note.');
+    }
+
+    function loadXmlFile(file) {
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        try {
+          const xmlText = event.target.result;
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(xmlText, 'application/xml');
+          const parseError = doc.querySelector('parsererror');
+          if (parseError) {
+            throw new Error(parseError.textContent || 'XML tidak valid');
+          }
+
+          xmlDoc = doc;
+          currentFilename = file.name.replace(/\.(xml|musicxml)$/i, '') + '-with-chords.xml';
+          fileInfo.textContent = `Memuat file: ${file.name}`;
+          const noteElements = Array.from(xmlDoc.querySelectorAll('note'));
+          if (noteElements.length === 0) {
+            throw new Error('Tidak ditemukan elemen <note> pada file ini.');
+          }
+          renderNotes(noteElements);
+        } catch (error) {
+          setStatus('❌ ' + error.message);
+          resetPage();
+          fileInfo.textContent = 'Terjadi kesalahan saat memuat file.';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function collectChordRows() {
+      const rows = [];
+      const chordInputs = Array.from(document.querySelectorAll('.chord-input'));
+      chordInputs.forEach(input => {
+        const idx = Number(input.dataset.noteIndex);
+        const chordText = input.value.trim();
+        const kindSelect = document.querySelector(`.kind-select[data-note-index="${idx}"]`);
+        rows.push({ index: idx, chordText, kind: kindSelect?.value || 'major' });
+      });
+      return rows;
+    }
+
+    function exportChordXml() {
+      if (!xmlDoc) {
+        setStatus('❌ Tidak ada file XML yang dimuat.');
+        return;
+      }
+      const rows = collectChordRows();
+
+      // Buang semua harmony lama, baik di dalam note maupun di tingkat measure
+      xmlDoc.querySelectorAll('harmony').forEach(harmony => harmony.remove());
+
+      let insertedCount = 0;
+      rows.forEach(row => {
+        const noteEntry = notes[row.index];
+        if (!noteEntry) return;
+
+        let chordInfo = null;
+        if (row.chordText.length > 0) {
+          chordInfo = parseChordText(row.chordText);
+          if (!chordInfo) {
+            setStatus(`❌ Format chord tidak valid pada note #${row.index + 1}: ${row.chordText}`);
+            throw new Error('Chord invalid');
+          }
+          chordInfo.kind = row.kind || chordInfo.kind || 'major';
+          chordInfo.chordText = row.chordText;
+        } else if (noteEntry.originalChord) {
+          chordInfo = noteEntry.originalChord;
+        }
+
+        if (!chordInfo) return;
+
+        const harmony = createHarmonyElement(xmlDoc, chordInfo);
+        const noteEl = noteEntry.noteEl;
+        const measureEl = noteEl.closest('measure');
+        if (measureEl) {
+          measureEl.insertBefore(harmony, noteEl);
+        } else {
+          noteEl.parentNode.insertBefore(harmony, noteEl);
+        }
+        insertedCount += 1;
+      });
+
+      if (insertedCount === 0) {
+        setStatus('✓ Tidak ada chord diinput, export XML asli tanpa perubahan.');
+      } else {
+        setStatus(`✓ Export selesai. ${insertedCount} chord ditambahkan atau diperbarui.`);
+      }
+
+      const serializer = new XMLSerializer();
+      let output = serializer.serializeToString(xmlDoc);
+      if (!output.startsWith('<?xml')) {
+        output = '<?xml version="1.0" encoding="UTF-8"?>\n' + output;
+      }
+
+      xmlOutput.value = output;
+      outputPanel.classList.remove('hidden');
+      downloadBtn.disabled = false;
+    }
+
+    function downloadXml() {
+      const content = xmlOutput.value;
+      if (!content) {
+        setStatus('❌ Belum ada hasil export untuk di-download.');
+        return;
+      }
+      const blob = new Blob([content], { type: 'application/xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = currentFilename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setStatus(`✓ File siap di-download: ${currentFilename}`);
+    }
+
+    fileInput.addEventListener('change', function(event) {
+      const file = event.target.files[0];
+      if (!file) {
+        resetPage();
+        fileInfo.textContent = 'Belum ada file yang dipilih.';
+        return;
+      }
+      setStatus('Memuat file XML...');
+      loadXmlFile(file);
+    });
+
+    exportBtn.addEventListener('click', function() {
+      try {
+        exportChordXml();
+      } catch (error) {
+        console.error(error);
+      }
+    });
+
+    downloadBtn.addEventListener('click', downloadXml);
+
+    clearAllBtn.addEventListener('click', function() {
+      document.querySelectorAll('.chord-input').forEach(input => input.value = '');
+      document.querySelectorAll('.kind-select').forEach(select => select.value = 'major');
+      setStatus('Semua chord dikosongkan.');
+    });
+  </script>
+</body>
+</html>
