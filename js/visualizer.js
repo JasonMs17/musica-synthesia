@@ -10,6 +10,10 @@ export default class Visualizer {
         this.onNoteCallback = null; // Callback for note-on events
         this.offNoteCallback = null; // Callback for note-off events
         this.audioEngine = null; // Reference to audio engine for sound playback
+
+        // Zoom view range to octaves 2..5
+        this.viewMinMidi = 36; // C2
+        this.viewMaxMidi = 83; // B5
     }
 
     init(audioEngine) {
@@ -88,7 +92,7 @@ export default class Visualizer {
                     const isThisNotePlaying = currentTime >= note.time && currentTime < note.time + note.duration;
 
                     // Track active note metadata for keyboard rendering
-                    if (isThisNotePlaying) {
+                    if (isThisNotePlaying && this.isMidiInViewRange(note.midi)) {
                         const existing = activeNotes.get(note.midi);
                         const currentIsLeft = this.isLeftHandTrack(note.trackName || '', note.trackChannel);
                         const existingIsLeft = existing ? this.isLeftHandTrack(existing.trackName || '', existing.trackChannel) : false;
@@ -101,7 +105,7 @@ export default class Visualizer {
                     }
 
                     // Check if note is visible
-                    if (note.time + note.duration > currentTime && note.time < currentTime + timeWindow) {
+                    if (this.isMidiInViewRange(note.midi) && note.time + note.duration > currentTime && note.time < currentTime + timeWindow) {
                         const x = this.getNoteX(note.midi);
                         const w = this.getNoteWidth(note.midi);
 
@@ -139,8 +143,8 @@ export default class Visualizer {
 
     drawOctaveGrid() {
         // Draw subtle grid lines for octaves (C notes)
-        const minNote = 21;
-        const maxNote = 108;
+        const minNote = this.viewMinMidi;
+        const maxNote = this.viewMaxMidi;
 
         this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
         this.ctx.lineWidth = 1;
@@ -210,6 +214,22 @@ export default class Visualizer {
         if (h > 4) {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
             ctx.fillRect(x + 2, y + 1, w - 4, 2);
+        }
+
+        // Draw note label for falling chord/piano roll notes
+        const noteLabel = note.name ? note.name.replace(/\d+$/, '') : this.getNoteLabel(note.midi);
+        const noteBottom = y + h;
+
+        // Hide label when the falling note reaches the bottom of the piano roll / virtual keyboard area
+        if (w > 24 && h > 20 && noteBottom < this.height - 6) {
+            ctx.font = '14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.strokeText(noteLabel, x + w / 2, y + h - 4);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(noteLabel, x + w / 2, y + h - 4);
         }
     }
 
@@ -294,12 +314,16 @@ export default class Visualizer {
         return names[midi % 12];
     }
 
+    getNoteLabel(midi) {
+        return this.getNoteName(midi);
+    }
+
     getNoteX(midiNote) {
         // Synthesia-style: position notes based on white key index, with black keys offset
-        const minNote = 21; // A0
-        const whiteKeyWidth = this.width / 52; // 52 white keys in 88-key piano
+        const minNote = this.viewMinMidi;
+        const whiteKeyWidth = this.width / this.getVisibleWhiteKeyCount();
 
-        // Count white keys before this note
+        // Count white keys before this note within the visible range
         let whiteKeysBefore = 0;
         for (let i = minNote; i < midiNote; i++) {
             if (!this.isBlackKey(i)) {
@@ -318,12 +342,33 @@ export default class Visualizer {
         return baseX;
     }
 
+    getNoteWidth(midiNote) {
+        const whiteKeyWidth = this.width / this.getVisibleWhiteKeyCount();
+        const blackKeyWidth = whiteKeyWidth * 0.6;
+
+        return this.isBlackKey(midiNote) ? blackKeyWidth : whiteKeyWidth;
+    }
+
+    getVisibleWhiteKeyCount() {
+        let count = 0;
+        for (let midi = this.viewMinMidi; midi <= this.viewMaxMidi; midi++) {
+            if (!this.isBlackKey(midi)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    isMidiInViewRange(midiNote) {
+        return midiNote >= this.viewMinMidi && midiNote <= this.viewMaxMidi;
+    }
+
     isLeftHandTrack(trackName, trackChannel) {
         return /left/i.test(trackName) || trackChannel === 1;
     }
 
     getNoteWidth(midiNote) {
-        const whiteKeyWidth = this.width / 52;
+        const whiteKeyWidth = this.width / this.getVisibleWhiteKeyCount();
         const blackKeyWidth = whiteKeyWidth * 0.6;
 
         return this.isBlackKey(midiNote) ? blackKeyWidth : whiteKeyWidth;
@@ -337,10 +382,10 @@ export default class Visualizer {
 
         ctx.clearRect(0, 0, w, h);
 
-        const minNote = 21; // A0
-        const maxNote = 108; // C8
+        const minNote = this.viewMinMidi;
+        const maxNote = this.viewMaxMidi;
         const blackKeyHeight = h * 0.6;
-        const whiteKeyWidth = w / 52;
+        const whiteKeyWidth = w / this.getVisibleWhiteKeyCount();
 
         // First pass: Draw all white keys
         let whiteKeyIndex = 0;
@@ -378,9 +423,16 @@ export default class Visualizer {
                 ctx.fillRect(x, 0, whiteKeyWidth, h);
 
                 // Border
-                ctx.strokeStyle = '#ccc';
+                ctx.strokeStyle = '#000000';
                 ctx.lineWidth = 1;
                 ctx.strokeRect(x, 0, whiteKeyWidth, h);
+
+                // White key label
+                ctx.fillStyle = '#111';
+                ctx.font = '14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(this.getNoteLabel(midi), x + whiteKeyWidth / 2, h - 6);
 
                 whiteKeyIndex++;
             }
@@ -424,9 +476,16 @@ export default class Visualizer {
                 ctx.fillRect(x, 0, blackKeyWidth, blackKeyHeight);
 
                 // Border
-                ctx.strokeStyle = '#333';
+                ctx.strokeStyle = '#111';
                 ctx.lineWidth = 1;
                 ctx.strokeRect(x, 0, blackKeyWidth, blackKeyHeight);
+
+                // Black key label
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '12px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(this.getNoteLabel(midi), x + blackKeyWidth / 2, blackKeyHeight - 4);
             }
         }
     }
@@ -530,10 +589,10 @@ export default class Visualizer {
         const x = clientX - rect.left;
         const y = clientY - rect.top;
 
-        const minNote = 21; // A0
-        const maxNote = 108; // C8
+        const minNote = this.viewMinMidi;
+        const maxNote = this.viewMaxMidi;
         const kbRect = this.keyboardCanvas.getBoundingClientRect();
-        const whiteKeyWidth = kbRect.width / 52;
+        const whiteKeyWidth = kbRect.width / this.getVisibleWhiteKeyCount();
         const blackKeyHeight = kbRect.height * 0.6;
 
         // First check black keys (they're on top)
