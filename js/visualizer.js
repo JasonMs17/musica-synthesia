@@ -236,13 +236,16 @@ export default class Visualizer {
         ctx.fillStyle = gradient;
         ctx.fillRect(x + 1, y, w - 2, h);
 
-        // Reset shadow
+        // Draw stronger outline for note clarity
         ctx.shadowBlur = 0;
-
-        // Draw subtle border for depth
-        ctx.strokeStyle = this.darkenColor(baseColor, 20);
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = this.darkenColor(baseColor, 35);
+        ctx.lineWidth = 4;
         ctx.strokeRect(x + 1, y, w - 2, h);
+
+        // Extra contrasting border
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 
         // Add highlight at top for 3D effect
         if (h > 4) {
@@ -256,13 +259,13 @@ export default class Visualizer {
 
         // Hide label when the falling note reaches the bottom of the piano roll / virtual keyboard area
         if (w > 24 && h > 20 && noteBottom < this.height - 6) {
-            ctx.font = '16px sans-serif';
+            ctx.font = '18px sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'bottom';
-            ctx.lineWidth = 1.5;
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
             ctx.strokeText(noteLabel, x + w / 2, y + h - 4);
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = this.isBlackKey(note.midi) ? '#ffffff' : '#3a3737';
             ctx.fillText(noteLabel, x + w / 2, y + h - 4);
         }
     }
