@@ -1,6 +1,7 @@
 /**
- * InteractiveModeManager - Manages interactive and learn-to-play modes
- * Handles note validation, user input tracking, and playback progression
+ * interactive-mode.js — Manages interactive and learn-to-play modes.
+ * Handles note validation, user input tracking, and playback progression.
+ * Works with MIDI input or mouse/touch keyboard interaction.
  */
 export default class InteractiveModeManager {
     constructor() {
@@ -212,7 +213,7 @@ export default class InteractiveModeManager {
 
     /**
      * Check if playback should pause because a note deadline is reached
-     * @param {number} currentTime 
+     * @param {number} currentTime
      * @returns {boolean}
      */
     shouldPause(currentTime) {

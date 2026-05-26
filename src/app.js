@@ -1,20 +1,63 @@
-import AudioEngine from './js/audio-engine.js';
-import Visualizer from './js/visualizer.js';
-import LicenseManager from './js/license-manager.js';
-import MidiInputHandler from './js/midi-input-handler.js';
-import InteractiveModeManager from './js/interactive-mode.js';
+/**
+ * app.js — Application orchestrator.
+ * Wires all modules together: audio engine, renderers, features, and UI events.
+ * This is the single entry point loaded by index.html.
+ *
+ * Architecture:
+ *   AudioEngine + PlaybackController  →  shared playback state
+ *   PianoRenderer (always visible)     →  keyboard at bottom
+ *   FallingNotesRenderer (toggleable)  →  falling notes visualization
+ *   SheetRenderer / JianpuRenderer     →  future visual modes (stubs)
+ *   InteractiveModeManager             →  learn/realtime mode logic
+ *   MidiInputHandler                   →  external MIDI keyboard
+ *   Recorder                           →  screen recording
+ */
+
+// ─── Core ────────────────────────────────────────────────────────────────────
+import AudioEngine from './core/audio-engine.js';
+import PlaybackController from './core/playback-controller.js';
+import LicenseManager from './core/license-manager.js';
+import InteractiveModeManager from './core/interactive-mode.js';
+
+// ─── Renderers ───────────────────────────────────────────────────────────────
+import PianoRenderer from './renderers/piano-renderer.js';
+import FallingNotesRenderer from './renderers/falling-notes-renderer.js';
+import SheetRenderer from './renderers/sheet-renderer.js';
+import JianpuRenderer from './renderers/jianpu-renderer.js';
+
+// ─── Features ────────────────────────────────────────────────────────────────
+import MidiInputHandler from './features/midi-input.js';
+import Recorder from './features/recorder.js';
+
+// ─── Utilities ───────────────────────────────────────────────────────────────
+import { NoteLayout, midiToNoteName, formatTime, getActiveNotes } from './utils/music-utils.js';
 
 class SynthesiaNext {
     constructor() {
+        // Core
         this.audioEngine = new AudioEngine();
-        this.visualizer = new Visualizer();
+        this.playbackController = new PlaybackController(this.audioEngine);
         this.licenseManager = new LicenseManager();
-        this.midiInputHandler = new MidiInputHandler();
         this.interactiveModeManager = new InteractiveModeManager();
 
+        // Shared layout — all renderers use this for pixel-perfect alignment
+        this.noteLayout = new NoteLayout(36, 83); // C2..B5
+
+        // Renderers
+        this.pianoRenderer = new PianoRenderer(this.noteLayout);
+        this.fallingNotesRenderer = new FallingNotesRenderer(this.noteLayout);
+        this.sheetRenderer = new SheetRenderer();
+        this.jianpuRenderer = new JianpuRenderer();
+
+        // Features
+        this.midiInputHandler = new MidiInputHandler();
+        this.recorder = new Recorder();
+
+        // State
         this.isPlaying = false;
         this.lastTime = 0;
         this.isWaitingForInput = false;
+        this.monitorTimeout = null;
 
         this.init();
     }
@@ -22,10 +65,16 @@ class SynthesiaNext {
     async init() {
         console.log("Initializing Synthesia Next...");
 
-        // Initialize modules
+        // Initialize core modules
         this.licenseManager.init();
-        this.visualizer.init(this.audioEngine);
         await this.audioEngine.init();
+
+        // Initialize renderers
+        this.fallingNotesRenderer.init(document.getElementById('piano-roll-canvas'));
+        this.pianoRenderer.init(document.getElementById('keyboard-canvas'));
+        // Sheet and Jianpu stubs — no canvas yet, will be initialized when implemented
+        // this.sheetRenderer.init(document.getElementById('sheet-container'));
+        // this.jianpuRenderer.init(document.getElementById('jianpu-container'));
 
         // Initialize MIDI Input Handler
         const midiSupported = await this.midiInputHandler.init();
@@ -35,12 +84,50 @@ class SynthesiaNext {
         this.setupEventListeners();
         this.setupMIDIEventListeners();
 
-        // Setup visualizer keyboard input (mouse/touch)
-        this.setupVisualizerInput();
+        // Setup piano keyboard input (mouse/touch) → routes to audio + interactive mode
+        this.setupPianoInput();
+
+        // Handle window resize for all renderers
+        this.setupResizeListeners();
+
+        // Render empty state
+        this.fallingNotesRenderer.render(0, null);
+        this.pianoRenderer.render();
 
         // Start Game Loop
         requestAnimationFrame(this.gameLoop.bind(this));
+
+        console.log("Visualizer Initialized");
     }
+
+    // ─── Resize Handling ─────────────────────────────────────────────────────
+
+    setupResizeListeners() {
+        const handleResize = () => {
+            this.fallingNotesRenderer.resize();
+            this.pianoRenderer.resize();
+        };
+
+        window.addEventListener('resize', handleResize);
+        document.addEventListener('fullscreenchange', handleResize);
+        document.addEventListener('webkitfullscreenchange', handleResize);
+        document.addEventListener('mozfullscreenchange', handleResize);
+
+        // Robust layout tracking
+        if (typeof ResizeObserver !== 'undefined') {
+            const observer = new ResizeObserver(() => {
+                handleResize();
+            });
+            const container = document.getElementById('app-container');
+            if (container) observer.observe(container);
+        }
+
+        // Fire immediately and again shortly after to handle CSS/flexbox settling
+        handleResize();
+        setTimeout(handleResize, 100);
+    }
+
+    // ─── Event Listeners ─────────────────────────────────────────────────────
 
     setupEventListeners() {
         // Toolbar Controls
@@ -53,7 +140,6 @@ class SynthesiaNext {
         fileInput.addEventListener('change', (e) => this.handleFileSelect(e));
 
         // Drag and Drop
-        const dropZone = document.getElementById('visualizer-container');
         const dragOverlay = document.getElementById('drag-overlay');
 
         window.addEventListener('dragover', (e) => {
@@ -90,17 +176,17 @@ class SynthesiaNext {
         speedSlider.addEventListener('input', (e) => {
             const rate = parseFloat(e.target.value);
             speedValue.textContent = rate.toFixed(1) + 'x';
-            this.audioEngine.setPlaybackRate(rate);
+            this.playbackController.setPlaybackRate(rate);
         });
 
         // Seek Slider
         const seekSlider = document.getElementById('seek-slider');
         seekSlider.addEventListener('input', (e) => {
             const percent = parseFloat(e.target.value);
-            const duration = this.audioEngine.duration;
+            const duration = this.playbackController.duration;
             if (duration > 0) {
                 const time = (percent / 100) * duration;
-                this.audioEngine.setTime(time);
+                this.playbackController.setTime(time);
             }
         });
 
@@ -118,7 +204,7 @@ class SynthesiaNext {
             if (result.valid) {
                 statusEl.textContent = "License Activated Successfully!";
                 statusEl.className = "status-message status-success";
-                setTimeout(() => modal.classList.add('hidden'), 1500);
+                setTimeout(() => document.getElementById('license-modal').classList.add('hidden'), 1500);
 
                 // Refresh MIDI modal if it was previously restricted
                 this.updateMIDIModalAccess();
@@ -180,12 +266,12 @@ class SynthesiaNext {
             this.interactiveModeManager.handleNoteOn(data.note, data.velocity);
 
             // Update monitor display
-            this.updateMIDIMonitor(`Note ON: ${this.getNoteNameFromMidi(data.note)} (${data.note}) Vel: ${Math.round(data.velocity * 127)}`);
+            this.updateMIDIMonitor(`Note ON: ${midiToNoteName(data.note)} (${data.note}) Vel: ${Math.round(data.velocity * 127)}`);
         });
 
         this.midiInputHandler.on('note-off', (data) => {
             this.interactiveModeManager.handleNoteOff(data.note);
-            this.updateMIDIMonitor(`Note OFF: ${this.getNoteNameFromMidi(data.note)} (${data.note})`);
+            this.updateMIDIMonitor(`Note OFF: ${midiToNoteName(data.note)} (${data.note})`);
         });
 
         this.midiInputHandler.on('device-connected', () => {
@@ -197,20 +283,30 @@ class SynthesiaNext {
         });
     }
 
-    setupVisualizerInput() {
-        // Connect visualizer keyboard clicks to interactive mode
-        this.visualizer.setNoteCallbacks(
+    /**
+     * Connect piano keyboard clicks to audio engine + interactive mode.
+     * The piano renderer is pure view — it just fires callbacks.
+     */
+    setupPianoInput() {
+        this.pianoRenderer.setNoteCallbacks(
             (note, velocity) => {
-                // Mouse note-on
+                // Play audio
+                this.audioEngine.playNote(note, velocity);
+                // Route to interactive mode
                 this.interactiveModeManager.handleNoteOn(note, velocity);
-                this.updateMIDIMonitor(`Mouse: ${this.getNoteNameFromMidi(note)} (${note})`);
+                // Update monitor
+                this.updateMIDIMonitor(`Mouse: ${midiToNoteName(note)} (${note})`);
             },
             (note) => {
-                // Mouse note-off
+                // Stop audio
+                this.audioEngine.stopNote(note);
+                // Route to interactive mode
                 this.interactiveModeManager.handleNoteOff(note);
             }
         );
     }
+
+    // ─── MIDI Settings Modal ─────────────────────────────────────────────────
 
     openMIDISettingsModal() {
         const midiModal = document.getElementById('midi-modal');
@@ -296,36 +392,33 @@ class SynthesiaNext {
         }, 2000);
     }
 
-    getNoteNameFromMidi(midiNote) {
-        const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        const octave = Math.floor(midiNote / 12) - 1;
-        const noteName = names[midiNote % 12];
-        return `${noteName}${octave}`;
-    }
+    // ─── Playback Controls ───────────────────────────────────────────────────
 
     togglePlay() {
-        if (this.audioEngine.isPlaying || this.isWaitingForInput) {
-            this.audioEngine.pause();
+        if (this.playbackController.isPlaying || this.isWaitingForInput) {
+            this.playbackController.pause();
             this.isWaitingForInput = false;
             document.getElementById('btn-play-pause').textContent = "▶";
         } else {
-            this.audioEngine.play();
+            this.playbackController.play();
             document.getElementById('btn-play-pause').textContent = "⏸";
         }
     }
 
     stop() {
-        this.audioEngine.stop();
+        this.playbackController.stop();
         document.getElementById('btn-play-pause').textContent = "▶";
 
         // Reset interactive mode state
         this.interactiveModeManager.reset();
         this.isWaitingForInput = false;
 
-        if (this.isRecording) {
-            this.stopRecording();
+        if (this.recorder.isActive) {
+            this.recorder.stop();
         }
     }
+
+    // ─── File Loading ────────────────────────────────────────────────────────
 
     handleFileSelect(event) {
         const file = event.target.files[0];
@@ -339,9 +432,14 @@ class SynthesiaNext {
         try {
             const arrayBuffer = await file.arrayBuffer();
             await this.audioEngine.loadMidi(arrayBuffer);
-            this.visualizer.reset();
+
+            // Store MIDI data in playback controller for renderers
+            this.playbackController.setMidiData(this.audioEngine.midiData);
+
+            // Reset renderers
+            this.fallingNotesRenderer.reset();
             this.interactiveModeManager.reset();
-            
+
             // Enable controllers
             document.getElementById('btn-play-pause').disabled = false;
             document.getElementById('btn-stop').disabled = false;
@@ -355,11 +453,7 @@ class SynthesiaNext {
         }
     }
 
-    formatTime(seconds) {
-        const m = Math.floor(seconds / 60);
-        const s = Math.floor(seconds % 60);
-        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-    }
+    // ─── Toolbar ─────────────────────────────────────────────────────────────
 
     toggleToolbar() {
         const toolbar = document.getElementById('toolbar');
@@ -367,125 +461,52 @@ class SynthesiaNext {
         toolbar.classList.toggle('toolbar-hidden');
         keyboardContainer.classList.toggle('keyboard-minimal');
 
-        if (this.visualizer && typeof this.visualizer.resize === 'function') {
-            this.visualizer.resize();
-        }
+        // Resize renderers after toolbar toggle
+        this.fallingNotesRenderer.resize();
+        this.pianoRenderer.resize();
     }
 
+    // ─── Recording ───────────────────────────────────────────────────────────
+
     async toggleRecording() {
-        if (this.isRecording) {
-            this.stopRecording();
+        if (this.recorder.isActive) {
+            this.recorder.stop();
             return;
         }
 
-        if (!this.audioEngine.midiData) {
+        if (!this.playbackController.midiData) {
             alert("Harap load file MIDI/XML terlebih dahulu sebelum merekam.");
             return;
         }
 
         try {
-            // Inform user what to choose in the screen sharing prompt.
-            alert("Pilih layar atau jendela yang menampilkan aplikasi ini. Jika tab browser tidak muncul, pilih seluruh layar atau jendela browser.");
-
-            const displayStream = await navigator.mediaDevices.getDisplayMedia({
-                video: {
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 },
-                    frameRate: { ideal: 60 },
-                    cursor: "never"
-                },
-                audio: false
-            });
-
-            // Capture high quality audio directly from Tone.js Context without relying on mic/system audio
-            const audioDest = Tone.context.createMediaStreamDestination();
-            Tone.getDestination().connect(audioDest);
-
-            // Combine video and audio
-            const tracks = [
-                ...displayStream.getVideoTracks(),
-                ...audioDest.stream.getAudioTracks()
-            ];
-            
-            this.recordingStream = new MediaStream(tracks);
-
-            // Check supported types for high quality webm
-            let options = { mimeType: 'video/webm; codecs=vp9' };
-            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-                options = { mimeType: 'video/webm; codecs=vp8' };
-            }
-            if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-                options = { mimeType: 'video/webm' };
-            }
-            
-            this.mediaRecorder = new MediaRecorder(this.recordingStream, options);
-            this.recordedChunks = [];
-
-            this.mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    this.recordedChunks.push(event.data);
-                }
-            };
-
-            this.mediaRecorder.onstop = () => {
-                const blob = new Blob(this.recordedChunks, { type: options.mimeType });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = `synthesia-recording-${Date.now()}.webm`;
-                document.body.appendChild(a);
-                a.click();
-                
-                setTimeout(() => {
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                }, 100);
-
-                // Disconnect to clean up
-                Tone.getDestination().disconnect(audioDest);
-                this.recordingStream.getTracks().forEach(track => track.stop());
-                
-                this.isRecording = false;
-                console.log("Recording stopped and saved.");
-            };
-
-            displayStream.getVideoTracks()[0].onended = () => {
-                if (this.isRecording) {
-                    this.stopRecording();
-                }
-            };
-
+            await this.recorder.start();
             // Reset time and play to start recording
-            this.audioEngine.setTime(0);
-            this.mediaRecorder.start();
-            this.isRecording = true;
-            this.audioEngine.play();
+            this.playbackController.setTime(0);
+            this.playbackController.play();
             document.getElementById('btn-play-pause').textContent = "⏸";
             console.log("Recording started...");
-
         } catch (error) {
             console.error("Error starting screen recording:", error);
             alert("Gagal memulai recording. Pastikan memberikan izin share screen.");
         }
     }
 
-    stopRecording() {
-        if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-            this.mediaRecorder.stop();
-        }
-    }
+    // ─── Game Loop ───────────────────────────────────────────────────────────
 
     gameLoop(timestamp) {
         const deltaTime = timestamp - this.lastTime;
         this.lastTime = timestamp;
 
-        // Learn Mode Logic
+        const currentTime = this.playbackController.currentTime;
+        const midiData = this.playbackController.midiData;
+
+        // ── Learn Mode Logic ─────────────────────────────────────────────────
+
         if (this.interactiveModeManager.getMode() === 'learn') {
-            if (this.audioEngine.isPlaying) {
+            if (this.playbackController.isPlaying) {
                 // Check if we need to pause for input
-                const currentTime = this.audioEngine.currentTime;
-                this.interactiveModeManager.updateExpectedNotes(currentTime, this.audioEngine.midiData);
+                this.interactiveModeManager.updateExpectedNotes(currentTime, midiData);
 
                 if (this.interactiveModeManager.canAdvancePlayback()) {
                     // If notes are correct, mark them as played so they don't block later
@@ -495,15 +516,15 @@ class SynthesiaNext {
                 } else {
                     // Notes are missing. Check if we reached the deadline.
                     if (this.interactiveModeManager.shouldPause(currentTime)) {
-                        this.audioEngine.pause();
+                        this.playbackController.pause();
                         this.isWaitingForInput = true;
                     }
                 }
             } else if (this.isWaitingForInput) {
                 // We are waiting. Check if input requirements are met.
                 if (this.interactiveModeManager.canAdvancePlayback()) {
-                    this.interactiveModeManager.confirmNotesPlayed(this.audioEngine.currentTime);
-                    this.audioEngine.play();
+                    this.interactiveModeManager.confirmNotesPlayed(currentTime);
+                    this.playbackController.play();
                     this.isWaitingForInput = false;
                 }
             }
@@ -511,37 +532,57 @@ class SynthesiaNext {
             this.isWaitingForInput = false;
         }
 
-        if (this.audioEngine.isPlaying) {
+        if (this.playbackController.isPlaying) {
             // Update expected notes in learn-to-play mode
-            const currentTime = this.audioEngine.currentTime;
-            this.interactiveModeManager.updateExpectedNotes(currentTime, this.audioEngine.midiData);
+            this.interactiveModeManager.updateExpectedNotes(currentTime, midiData);
         }
 
-        // Get user notes for visualization
+        // ── Gather rendering data ────────────────────────────────────────────
+
         const userNotes = this.interactiveModeManager.getUserNotesForRendering();
         const activeUserNotes = this.interactiveModeManager.getCurrentlyPressedNotes();
+        const expectedNotes = this.interactiveModeManager.getExpectedNotesSet();
+        const interactiveMode = this.interactiveModeManager.getMode();
 
-        // Render with interactive mode data
-        this.visualizer.render(
-            this.audioEngine.currentTime,
-            this.audioEngine.midiData,
-            activeUserNotes,
-            userNotes,
-            this.interactiveModeManager.getExpectedNotesSet(),
-            this.interactiveModeManager.getMode()
-        );
+        // ── Render falling notes (returns activeNotes for piano) ─────────────
 
-        // Update UI time
-        const currentTime = this.audioEngine.currentTime;
-        const duration = this.audioEngine.duration;
+        let activeNotes;
+
+        if (this.fallingNotesRenderer.visible) {
+            const result = this.fallingNotesRenderer.render(
+                currentTime, midiData,
+                activeUserNotes, userNotes, expectedNotes, interactiveMode
+            );
+            activeNotes = result.activeNotes;
+        } else {
+            // Falling notes hidden — compute activeNotes separately for the piano
+            activeNotes = getActiveNotes(currentTime, midiData, this.noteLayout);
+        }
+
+        // ── Render piano keyboard (always visible) ───────────────────────────
+
+        this.pianoRenderer.render(activeNotes, activeUserNotes, expectedNotes, interactiveMode);
+
+        // ── Future renderers ─────────────────────────────────────────────────
+
+        // if (this.sheetRenderer.visible) {
+        //     this.sheetRenderer.render(currentTime, midiData);
+        // }
+        // if (this.jianpuRenderer.visible) {
+        //     this.jianpuRenderer.render(currentTime, midiData);
+        // }
+
+        // ── Update UI time display ───────────────────────────────────────────
+
+        const duration = this.playbackController.duration;
 
         // If playback reaches or exceeds end, stop automatically
-        if (this.audioEngine.isPlaying && duration > 0 && currentTime >= duration - 0.01) {
+        if (this.playbackController.isPlaying && duration > 0 && currentTime >= duration - 0.01) {
             this.stop();
         }
 
-        document.getElementById('current-time').textContent = this.formatTime(currentTime);
-        document.getElementById('total-time').textContent = this.formatTime(duration);
+        document.getElementById('current-time').textContent = formatTime(currentTime);
+        document.getElementById('total-time').textContent = formatTime(duration);
 
         if (duration > 0) {
             const percent = (currentTime / duration) * 100;
@@ -555,5 +596,5 @@ class SynthesiaNext {
     }
 }
 
-// Start the app
-window.app = new SynthesiaNext();
+// ─── Start the app ───────────────────────────────────────────────────────────
+const app = new SynthesiaNext();

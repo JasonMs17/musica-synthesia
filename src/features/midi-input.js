@@ -1,4 +1,10 @@
 /**
+ * midi-input.js — Web MIDI API integration for external MIDI keyboard input.
+ * Optional feature: connects physical MIDI devices for real-time note input.
+ * Uses an event emitter pattern (on/off/emit) for decoupled communication.
+ */
+
+/**
  * MidiInputHandler - Web MIDI API Integration
  * Handles MIDI device detection, selection, and real-time note events
  */

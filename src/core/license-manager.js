@@ -1,3 +1,7 @@
+/**
+ * license-manager.js — Manages premium license validation and persistence.
+ * Validates license keys using a checksum algorithm and stores them in localStorage.
+ */
 export default class LicenseManager {
     constructor() {
         this.isPremium = true;

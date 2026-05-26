@@ -1,3 +1,12 @@
+/**
+ * audio-engine.js — Core audio playback engine.
+ * Wraps Tone.js for MIDI playback using Salamander piano samples.
+ * Handles loading, scheduling, play/pause/stop, and single-note playback.
+ * Does NOT handle rendering or UI — that's the renderers' job.
+ */
+import { parseMidi } from './midi-parser.js';
+import { midiToNoteName } from '../utils/music-utils.js';
+
 export default class AudioEngine {
     constructor() {
         this.midiData = null;
@@ -63,12 +72,8 @@ export default class AudioEngine {
         this.stop();
         this.cleanup();
 
-        // Parse MIDI
-        if (typeof Midi === 'undefined') {
-            console.error("@tonejs/midi library not loaded.");
-            throw new Error("Midi library not found");
-        }
-        this.midiData = new Midi(arrayBuffer);
+        // Parse MIDI using the dedicated parser
+        this.midiData = parseMidi(arrayBuffer);
 
         console.log("MIDI Parsed:", this.midiData);
 
@@ -166,7 +171,7 @@ export default class AudioEngine {
     }
 
     /**
-     * Play a single note immediately (for manual keyboard clicking)
+     * Play a single note immediately (for manual keyboard clicking).
      * @param {number} midiNote - MIDI note number (0-127)
      * @param {number} velocity - Velocity (0-1)
      */
@@ -175,30 +180,18 @@ export default class AudioEngine {
             Tone.start();
         }
 
-        const noteName = this.midiToNoteName(midiNote);
+        const noteName = midiToNoteName(midiNote);
         this.sampler.triggerAttack(noteName, undefined, velocity);
     }
 
     /**
-     * Stop a single note (for keyboard release)
+     * Stop a single note (for keyboard release).
      * @param {number} midiNote - MIDI note number
      */
     stopNote(midiNote) {
         if (this.sampler) {
-            const noteName = this.midiToNoteName(midiNote);
+            const noteName = midiToNoteName(midiNote);
             this.sampler.triggerRelease(noteName);
         }
-    }
-
-    /**
-     * Convert MIDI note number to note name (e.g., 60 -> "C4")
-     * @param {number} midi - MIDI note number
-     * @returns {string} Note name
-     */
-    midiToNoteName(midi) {
-        const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-        const octave = Math.floor(midi / 12) - 1;
-        const noteName = noteNames[midi % 12];
-        return `${noteName}${octave}`;
     }
 }
